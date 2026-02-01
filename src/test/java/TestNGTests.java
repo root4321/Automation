@@ -4,7 +4,7 @@ public class TestNGTests {
 
     @Test
     public void test(){
-        System.out.println("Test NG test2");
+        System.out.println("Test NG test");
     }
 
 
