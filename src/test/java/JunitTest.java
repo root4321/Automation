@@ -4,6 +4,6 @@ public class JunitTest {
 
     @Test
     public void test(){
-        System.out.println("Running J Unit test");
+        System.out.println("Running J Unit test1");
     }
 }
