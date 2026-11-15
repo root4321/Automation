@@ -157,14 +157,17 @@ Choose a browser with `-Dbrowser=chrome`, `-Dbrowser=edge`, or
 
 Run commands from the repository root. Maven's `test` phase compiles the
 project, runs the selected Cucumber scenarios, and generates the configured
-reports.
+reports. Prefer `mvn clean test` after changing branches or when Maven reports
+`Nothing to compile` alongside unresolved-class errors; `clean` removes stale
+compiled files under `target/`. The GitHub Actions workflow always uses a clean
+build.
 
 ```sh
 # Run scenarios matching the default @uiSanity tag
 mvn test
 
 # Run a particular tag
-mvn test -Dcucumber.filter.tags="@healthcheck"
+mvn clean test -Dcucumber.filter.tags="@healthcheck"
 
 # Run API positive CRUD scenarios
 mvn test -Dcucumber.filter.tags="@Sanity"
