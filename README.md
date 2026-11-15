@@ -87,11 +87,16 @@ The optional local credentials file is:
 src/test/resources/LoginData/ShoppingApp.properties
 ```
 
-It is ignored by Git. Use
-`src/test/resources/LoginData/ShoppingApp.properties.example` as a template
-for the required profile-specific keys. The example contains placeholders and
-is not loaded by the test framework; copy it to `ShoppingApp.properties` and
-replace the placeholders locally.
+It is ignored by Git. Add profile-specific property keys there:
+
+```properties
+email_dev=your-dev-account-email
+password_dev=your-dev-password
+email_pre=your-pre-account-email
+password_pre=your-pre-password
+email_prod=your-prod-account-email
+password_prod=your-prod-password
+```
 
 The framework selects the suffix matching the active Spring profile. The
 `SHOP_EMAIL` and `SHOP_PASSWORD` environment variables override the file values
