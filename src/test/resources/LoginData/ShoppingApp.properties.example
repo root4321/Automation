@@ -1,0 +1,6 @@
+email_dev=replace-with-dev-account-email
+password_dev=replace-with-dev-password
+email_pre=replace-with-pre-account-email
+password_pre=replace-with-pre-password
+email_prod=replace-with-prod-account-email
+password_prod=replace-with-prod-password
