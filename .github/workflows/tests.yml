@@ -1,0 +1,90 @@
+name: Automation tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      browser:
+        description: Browser to use for UI scenarios
+        type: choice
+        required: true
+        default: chrome
+        options:
+          - chrome
+          - edge
+          - safari
+      environment:
+        description: Spring environment and GitHub Environment to use
+        type: choice
+        required: true
+        default: dev
+        options:
+          - dev
+          - pre
+          - prod
+      tags:
+        description: Cucumber tag expression
+        type: string
+        required: true
+        default: "@uiSanity"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ inputs.environment }} / ${{ inputs.browser }}
+    runs-on: ${{ inputs.browser == 'safari' && 'macos-latest' || 'ubuntu-latest' }}
+    environment:
+      name: ${{ inputs.environment }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out selected branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Enable Safari WebDriver
+        if: inputs.browser == 'safari'
+        run: sudo safaridriver --enable
+
+      - name: Run Cucumber tests
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
+          UI_BASE_URL: ${{ secrets.UI_BASE_URL }}
+          SHOP_EMAIL: ${{ secrets.SHOP_EMAIL }}
+          SHOP_PASSWORD: ${{ secrets.SHOP_PASSWORD }}
+          TEST_ENVIRONMENT: ${{ inputs.environment }}
+          TEST_BROWSER: ${{ inputs.browser }}
+          TEST_TAGS: ${{ inputs.tags }}
+          BROWSER_HEADLESS: ${{ inputs.browser == 'safari' && 'false' || 'true' }}
+        run: |
+          if [ -z "$API_BASE_URL" ]; then unset API_BASE_URL; fi
+          if [ -z "$API_KEY" ]; then unset API_KEY; fi
+          if [ -z "$UI_BASE_URL" ]; then unset UI_BASE_URL; fi
+          if [ -z "$SHOP_EMAIL" ]; then unset SHOP_EMAIL; fi
+          if [ -z "$SHOP_PASSWORD" ]; then unset SHOP_PASSWORD; fi
+          mvn --batch-mode --no-transfer-progress clean test \
+            -Dspring.profiles.active="$TEST_ENVIRONMENT" \
+            -Dbrowser="$TEST_BROWSER" \
+            -Dbrowser.headless="$BROWSER_HEADLESS" \
+            -Dcucumber.filter.tags="$TEST_TAGS"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ inputs.environment }}-${{ inputs.browser }}
+          path: |
+            target/cucumber-report.html
+            target/cucumber/cucumber.json
+            target/cucumber-html-reports/
+            target/extent/extent-report.html
+          if-no-files-found: warn

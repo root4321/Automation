@@ -1,0 +1,3 @@
+api:
+  base-url: ${API_BASE_URL:${pre.api.url:}}
+  key: ${API_KEY:}

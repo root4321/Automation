@@ -1,0 +1,13 @@
+spring:
+  config:
+    import: classpath:bootstrap.properties,classpath:environment.properties
+  profiles:
+    default: ${environment:dev}
+
+api:
+  default-update-address: "70 winter walk, USA"
+  endpoints:
+    add: /maps/api/place/add/json
+    get: /maps/api/place/get/json
+    update: /maps/api/place/update/json
+    delete: /maps/api/place/delete/json

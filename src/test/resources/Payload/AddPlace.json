@@ -1,0 +1,13 @@
+{
+  "location": {
+    "lat": null,
+    "lng": null
+  },
+  "accuracy": null,
+  "name": "",
+  "phone_number": "",
+  "address": "",
+  "types": [],
+  "website": "http://google.com",
+  "language": "French-IN"
+}

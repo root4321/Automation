@@ -1,0 +1,3 @@
+api:
+  base-url: ${API_BASE_URL:${dev.api.url:}}
+  key: ${API_KEY:qaclick123}
