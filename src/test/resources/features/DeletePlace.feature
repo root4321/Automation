@@ -1,4 +1,4 @@
-@delete @Regression
+@delete @Regression @apiRegression
 Feature: Delete a place
   @positive @Sanity
   Scenario Outline: Delete an existing place

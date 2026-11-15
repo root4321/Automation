@@ -1,4 +1,4 @@
-@get @Regression
+@get @Regression @apiRegression
 Feature: Get a place
   @positive @Sanity
   Scenario Outline: Retrieve the details of an existing place

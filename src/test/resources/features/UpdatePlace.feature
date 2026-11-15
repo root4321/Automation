@@ -1,4 +1,4 @@
-@put @Regression
+@put @Regression @apiRegression
 Feature: Update a place
   @positive @Sanity
   Scenario Outline: Update the address of an existing place

@@ -1,4 +1,4 @@
-@Regression
+@Regression @apiRegression 
 Feature: Add a place
   @positive @Sanity @apiSanity @healthcheck
   Scenario Outline: Add a place with valid details
