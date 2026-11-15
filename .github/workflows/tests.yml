@@ -87,4 +87,5 @@ jobs:
             target/cucumber/cucumber.json
             target/cucumber-html-reports/
             target/extent/extent-report.html
+            target/screenshots/
           if-no-files-found: warn

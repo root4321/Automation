@@ -1,10 +1,13 @@
 package org.test.steps;
 
 import io.cucumber.java.After;
+import io.cucumber.java.Scenario;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import org.openqa.selenium.Dimension;
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
 import org.springframework.core.env.Environment;
 import org.test.pages.ShopDashboardPage;
@@ -12,6 +15,11 @@ import org.test.pages.ShopLoginPage;
 import org.test.support.BrowserFactory;
 import org.test.support.EnvironmentUrlResolver;
 import org.test.support.ShoppingAppCredentials;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
 
 public class ShopLoginSteps {
     private WebDriver driver;
@@ -52,10 +60,31 @@ public class ShopLoginSteps {
     }
 
     @After("@ui")
-    public void closeBrowser() {
+    public void closeBrowser(Scenario scenario) throws IOException {
         if (driver != null) {
-            driver.quit();
+            try {
+                captureScreenshotIfFailed(driver, scenario, Path.of("target", "screenshots"));
+            } finally {
+                driver.quit();
+                driver = null;
+            }
         }
     }
 
+    static void captureScreenshotIfFailed(WebDriver driver, Scenario scenario, Path outputDirectory)
+            throws IOException {
+        if (!scenario.isFailed()) {
+            return;
+        }
+        if (!(driver instanceof TakesScreenshot screenshotDriver)) {
+            throw new IllegalStateException("WebDriver does not support screenshots");
+        }
+
+        byte[] screenshot = screenshotDriver.getScreenshotAs(OutputType.BYTES);
+        String scenarioName = scenario.getName().replaceAll("[^A-Za-z0-9._-]", "_");
+        String filename = scenarioName + "-" + UUID.randomUUID() + ".png";
+        Files.createDirectories(outputDirectory);
+        Files.write(outputDirectory.resolve(filename), screenshot);
+        scenario.attach(screenshot, "image/png", filename);
+    }
 }

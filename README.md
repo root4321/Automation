@@ -228,7 +228,14 @@ environment uses the repository's test-service URL defaults, but UI login still
 requires valid `SHOP_EMAIL` and `SHOP_PASSWORD` values.
 
 The workflow uploads the Cucumber HTML/JSON, Extent, and Masterthought outputs
-as a downloadable artifact on both successful and failed test runs.
+as a downloadable artifact on both successful and failed test runs. A failed
+UI scenario captures a screenshot before closing the browser; it is attached
+to the Cucumber scenario and saved under `target/screenshots/` for the
+artifact.
+
+The shop login needs `SHOP_EMAIL` and `SHOP_PASSWORD` in the selected GitHub
+Environment. If either is missing, the login step fails before opening a
+browser, so no screenshot can be captured for that failure.
 
 ## Reports
 
