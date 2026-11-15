@@ -1,5 +1,6 @@
 package org.test.pages;
 
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
@@ -23,5 +24,14 @@ public class ShopDashboardPage {
     public void waitUntilDisplayed() {
         wait.until(ExpectedConditions.urlContains("/dashboard/"));
         wait.until(ExpectedConditions.visibilityOf(navigation));
+    }
+
+    public boolean isDisplayed() {
+        try {
+            waitUntilDisplayed();
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        }
     }
 }

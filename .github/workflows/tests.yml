@@ -26,6 +26,16 @@ on:
         type: string
         required: true
         default: "@uiSanity"
+      retry_count:
+        description: Times to re-run failed scenarios (0-4, values above 4 are capped at 4)
+        type: string
+        required: true
+        default: "3"
+      threads:
+        description: Scenarios to run in parallel (Safari always uses 1)
+        type: string
+        required: true
+        default: "4"
 
 permissions:
   contents: read
@@ -64,6 +74,8 @@ jobs:
           TEST_ENVIRONMENT: ${{ inputs.environment }}
           TEST_BROWSER: ${{ inputs.browser }}
           TEST_TAGS: ${{ inputs.tags }}
+          RETRY_COUNT: ${{ inputs.retry_count }}
+          THREADS: ${{ inputs.browser == 'safari' && '1' || inputs.threads }}
           BROWSER_HEADLESS: ${{ inputs.browser == 'safari' && 'false' || 'true' }}
         run: |
           if [ -z "$API_BASE_URL" ]; then unset API_BASE_URL; fi
@@ -75,7 +87,38 @@ jobs:
             -Dspring.profiles.active="$TEST_ENVIRONMENT" \
             -Dbrowser="$TEST_BROWSER" \
             -Dbrowser.headless="$BROWSER_HEADLESS" \
-            -Dcucumber.filter.tags="$TEST_TAGS"
+            -Dcucumber.filter.tags="$TEST_TAGS" \
+            -Dretry.count="$RETRY_COUNT" \
+            -Dthreads="$THREADS"
+
+      - name: Summarise consolidated results
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          path = "target/cucumber/cucumber.json"
+          if not os.path.exists(path):
+              print("No consolidated Cucumber results were produced.")
+              raise SystemExit
+          counts, failed = {}, []
+          for feature in json.load(open(path)):
+              for element in feature.get("elements", []):
+                  if element.get("type") != "scenario":
+                      continue
+                  steps = [s.get("result", {}).get("status", "") for s in element.get("steps", [])]
+                  for hook in element.get("before", []) + element.get("after", []):
+                      steps.append(hook.get("result", {}).get("status", ""))
+                  status = "failed" if any(x in ("failed", "undefined", "pending") for x in steps) else "passed"
+                  counts[status] = counts.get(status, 0) + 1
+                  if status == "failed":
+                      failed.append(f"{feature.get('name')} / {element.get('name')}")
+          print("### Consolidated Cucumber results (after retries)")
+          print(f"- Passed: {counts.get('passed', 0)}")
+          print(f"- Failed: {counts.get('failed', 0)}")
+          for name in failed:
+              print(f"  - {name}")
+          print("\nOpen the `reports-*` artifact: `cucumber-html-reports/overview-features.html` has the single consolidated report.")
+          PY
 
       - name: Upload test reports
         if: always()
@@ -84,8 +127,9 @@ jobs:
           name: reports-${{ inputs.environment }}-${{ inputs.browser }}
           path: |
             target/cucumber-report.html
-            target/cucumber/cucumber.json
+            target/cucumber/
+            target/rerun/
             target/cucumber-html-reports/
-            target/extent/extent-report.html
+            target/extent/
             target/screenshots/
           if-no-files-found: warn

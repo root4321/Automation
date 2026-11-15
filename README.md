@@ -1,7 +1,7 @@
 # Automation Test Framework
 
 This repository contains API and browser UI tests written in Java. It uses
-Cucumber for readable scenarios, JUnit 4 to run Cucumber, Spring to wire shared
+Cucumber for readable scenarios, the JUnit Platform to run Cucumber in parallel, Spring to wire shared
 test components, Rest Assured for API requests, and Selenium WebDriver for
 browser automation.
 
@@ -32,12 +32,15 @@ src/
 │       └── application-{dev,pre,prod}.yml
 └── test/
     ├── java/org/test/
-    │   ├── TestRunner.java          # Cucumber/JUnit entry point
-    │   ├── steps/                   # Cucumber step definitions
+    │   ├── TestRunner.java          # Parallel Cucumber/JUnit Platform suite (first run)
+    │   ├── FailedTestRunner.java    # Re-runs failed scenarios and merges all results
+    │   ├── reporting/               # Retry policy, rerun-file reader, JSON merger
+    │   ├── steps/                   # Cucumber step definitions and hooks
     │   ├── pages/                   # Selenium page objects
     │   ├── model/                   # API request/response data models
     │   └── support/                 # API, browser, URL and credential helpers
     └── resources/
+        ├── junit-platform.properties # Parallelism and default tag expression
         ├── features/                # Gherkin feature files
         ├── Payload/                 # JSON request templates for API tests
         └── LoginData/               # Local UI credentials (git-ignored)
@@ -60,7 +63,7 @@ src/
 - **API models:** put request/response POJOs under
   `src/test/java/org/test/model/`.
 
-`TestRunner` finds features on the test classpath at `features` and starts the
+`TestRunner` is a JUnit Platform `@Suite`. It finds features on the test classpath at `features` and starts the
 Spring test context through `CucumberSpringConfiguration`.
 
 ## API request payloads
@@ -186,10 +189,55 @@ mvn test -Dcucumber.filter.tags="@apiSanity or @uiSanity"
 mvn clean test -Dcucumber.filter.tags="@healthcheck"
 ```
 
-The default tag expression is configured in
-`src/test/java/org/test/TestRunner.java`; `-Dcucumber.filter.tags` selects or
-overrides the scenarios for an individual run. Tags can be placed above a
+The default tag expression (`cucumber.filter.tags`) is configured in
+`src/test/resources/junit-platform.properties`; `-Dcucumber.filter.tags` selects
+or overrides the scenarios for an individual run. Tags can be placed above a
 feature or scenario. A scenario inherits its feature's tags.
+
+### Parallel execution
+
+Scenarios run in parallel using the Cucumber JUnit Platform engine, configured
+in `junit-platform.properties` and surefire in `pom.xml`. Each scenario runs on
+one thread with its own browser and Spring-wired step objects. The default is 4
+threads; change it with `-Dthreads`:
+
+```sh
+mvn clean test -Dthreads=2 -Dcucumber.filter.tags="@Regression"
+```
+
+Use `-Dthreads=1` for sequential execution (Safari supports only one session,
+so the workflow always uses 1 thread for Safari).
+
+### Re-running failed scenarios
+
+`mvn test` runs three Surefire executions in order:
+
+1. `default-test` - plain unit tests (a failure stops the build).
+2. `cucumber-run` - `TestRunner` executes all selected scenarios in parallel and
+   the Cucumber `rerun` plugin lists failed scenarios in `target/rerun/failed.txt`.
+3. `rerun-failed` - `FailedTestRunner` executes only the scenarios still listed
+   in `failed.txt`, then repeats with the ones that still fail, up to
+   `-Dretry.count` times. The default is 3; the maximum is 4 (larger values are
+   capped, `0` disables retries).
+
+For example, if 100 scenarios run and 40 fail, those 40 are re-executed; if 20 of
+them fail again, only those 20 run in the next retry, and so on until everything
+passes or the retries are used up.
+
+```sh
+mvn clean test -Dretry.count=4
+```
+
+To run `FailedTestRunner` on its own against the results of an earlier run (after
+`mvn test`), then rebuild the consolidated report:
+
+```sh
+mvn test-compile surefire:test@rerun-failed -Dretry.count=2
+mvn net.masterthought:maven-cucumber-reporting:5.10.2:generate@cucumber-report
+```
+
+When only unit tests are selected (for example `-Dtest=RetryPolicyTest`), add
+`-Dcucumber.skip=true` so the report goal is skipped.
 
 These are integration tests: API scenarios send real HTTP requests to the
 configured service. Add/Get/Update/Delete scenarios create and modify data and
@@ -209,6 +257,8 @@ workflow checks out that selected branch and provides inputs for:
 - **Environment:** `dev`, `pre`, or `prod`, which selects the corresponding
   Spring profile and GitHub Environment.
 - **Tags:** a Cucumber tag expression; the default is `@uiSanity`.
+- **Retry count:** times to re-run failed scenarios (default 3, maximum 4).
+- **Threads:** scenarios to run in parallel (default 4; Safari always uses 1).
 
 You can add shared values as repository secrets under
 **Settings > Secrets and variables > Actions**, or create GitHub Environments
@@ -233,26 +283,63 @@ credentials when running UI scenarios in those environments. The `dev`
 environment uses the repository's test-service URL defaults, but UI login still
 requires valid `SHOP_EMAIL` and `SHOP_PASSWORD` values.
 
-The workflow uploads the Cucumber HTML/JSON, Extent, and Masterthought outputs
-as a downloadable artifact on both successful and failed test runs. A failed
-UI scenario captures a screenshot before closing the browser; it is attached
-to the Cucumber scenario and saved under `target/screenshots/` for the
-artifact.
+API request/response logs, scenario start/finish lines and retry progress appear
+in the workflow's console log, and a summary of the consolidated results is added
+to the run's job summary. The workflow uploads the Cucumber HTML/JSON, Extent,
+and Masterthought outputs (including the single consolidated report) as a
+downloadable artifact on both successful and failed test runs. UI screenshots are
+attached to the scenarios in the report and saved under `target/screenshots/` for
+the artifact.
 
 The shop login needs `SHOP_EMAIL` and `SHOP_PASSWORD` from repository secrets
 or the selected GitHub Environment. If either is missing, the login step fails
 before opening a browser, so no screenshot can be captured for that failure.
 
+## API request/response logging
+
+Every Rest Assured call made through `PlaceApiSupport.request()` is logged by
+`ApiLoggingFilter`: method and URL, request headers and body, response status,
+headers and body, and the response time. JSON is pretty-printed. The text goes
+to the console (so it appears in the GitHub Actions log, tagged with the
+scenario name) and is attached to the scenario, so it is also visible in the
+Cucumber reports. The `Authorization`, `Cookie`, `Set-Cookie` and `X-Api-Key`
+headers and the `key`, `api_key`, `token` and `password` query parameters are
+masked as `****`.
+
+## UI screenshots
+
+For UI scenarios (any scenario that opens a browser and registers it with
+`ScenarioContext`), screenshots are saved to `target/screenshots/` and attached to
+the Cucumber report when:
+
+- a step fails (`Step failed`, attached to the failing step);
+- an assertion made with `UiAssertions` fails (`Assertion failed - <message>`),
+  taken before the error is thrown; use `UiAssertions` for assertions in UI steps;
+- a scenario fails, and at the end of every scenario
+  (`Scenario failed (FAILED)` or `End of scenario (PASSED)`), before the browser
+  closes.
+
+Screenshot problems are logged and never change the test result. API-only
+scenarios have no browser and take no screenshots.
+
 ## Reports
 
 Reports are written under `target/`:
 
-- `cucumber-report.html` — Cucumber HTML report
-- `cucumber/cucumber.json` — Cucumber JSON output
-- `extent/extent-report.html` — Extent Spark report
-- `cucumber-html-reports/overview-features.html` — Masterthought HTML report
+- `cucumber-html-reports/overview-features.html` - **the consolidated
+  Masterthought report**: one entry per scenario with its final result after all
+  retries, including the screenshots and API call logs
+- `cucumber/cucumber.json` - consolidated Cucumber JSON, the input of that report
+- `cucumber/attempts/attempt-NN.json` - raw JSON of the first run (`00`) and each retry
+- `rerun/failed.txt` - scenarios still failing after the last attempt
+- `screenshots/` - saved screenshots
+- `cucumber-report.html` and `extent/extent-report.html` - Cucumber HTML and
+  Extent Spark reports of the *first run only* (before retries)
 
-The Cucumber HTML, JSON, and Extent outputs are configured by `TestRunner` and
-`src/extent.properties`. The Masterthought report goal is bound to Maven's
-`test` phase in `pom.xml`, so it is generated when you run `mvn test`.
-`mvn clean test` removes previous reports before running.
+`FailedTestRunner` merges the attempt files into `cucumber/cucumber.json`; a
+scenario that was re-executed is replaced by its latest result. The Masterthought
+goal is bound to Maven's `test` phase, runs after both Cucumber executions, and
+fails the build if any scenario is still failing after the last retry (the report
+is generated first). `mvn clean test` removes previous reports before running,
+and a plain `mvn test` clears the previous run's `cucumber/`, `rerun/`,
+`screenshots/` and `cucumber-html-reports/` directories.

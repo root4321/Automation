@@ -26,6 +26,7 @@ public class PlaceApiSupport {
 
     public RequestSpecification request() {
         return given()
+                .filter(new ApiLoggingFilter())
                 .baseUri(properties.getBaseUrl())
                 .contentType(ContentType.JSON)
                 .accept(ContentType.JSON);

@@ -23,6 +23,8 @@
         <cucumber.version>7.18.1</cucumber.version>
         <rest-assured.version>5.5.0</rest-assured.version>
         <selenium.version>4.52.0</selenium.version>
+        <!-- Scenarios executed in parallel; override with -Dthreads=N -->
+        <threads>4</threads>
     </properties>
 
     <dependencies>
@@ -34,8 +36,18 @@
         </dependency>
         <dependency>
             <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-junit</artifactId>
+            <artifactId>cucumber-junit-platform-engine</artifactId>
             <version>${cucumber.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -63,11 +75,6 @@
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.13.2</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.vintage</groupId>
-            <artifactId>junit-vintage-engine</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -137,6 +144,80 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <cucumber.execution.parallel.config.fixed.parallelism>${threads}</cucumber.execution.parallel.config.fixed.parallelism>
+                        <cucumber.execution.parallel.config.fixed.max-pool-size>${threads}</cucumber.execution.parallel.config.fixed.max-pool-size>
+                    </systemPropertyVariables>
+                </configuration>
+                <executions>
+                    <!-- Plain unit tests; failures stop the build before any Cucumber run -->
+                    <execution>
+                        <id>default-test</id>
+                        <configuration>
+                            <excludes>
+                                <exclude>**/TestRunner.java</exclude>
+                                <exclude>**/FailedTestRunner.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                    <!-- Full parallel run of the selected scenarios -->
+                    <execution>
+                        <id>cucumber-run</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>**/TestRunner.java</include>
+                            </includes>
+                            <testFailureIgnore>true</testFailureIgnore>
+                        </configuration>
+                    </execution>
+                    <!-- Re-runs failed scenarios (-Dretry.count, max 4) and writes the merged cucumber.json -->
+                    <execution>
+                        <id>rerun-failed</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>**/FailedTestRunner.java</include>
+                            </includes>
+                            <testFailureIgnore>true</testFailureIgnore>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <executions>
+                    <!-- Drop results of earlier runs so they are never merged into this run's report -->
+                    <execution>
+                        <id>reset-test-results</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.directory}</directory>
+                                    <includes>
+                                        <include>cucumber/**</include>
+                                        <include>rerun/**</include>
+                                        <include>screenshots/**</include>
+                                        <include>cucumber-html-reports/**</include>
+                                    </includes>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>net.masterthought</groupId>
