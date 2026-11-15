@@ -210,14 +210,19 @@ workflow checks out that selected branch and provides inputs for:
   Spring profile and GitHub Environment.
 - **Tags:** a Cucumber tag expression; the default is `@uiSanity`.
 
-Create GitHub Environments named `dev`, `pre`, and `prod` under
-**Settings > Environments**. Add the values needed for each environment as
-environment secrets; the workflow maps these secrets into the test process:
+You can add shared values as repository secrets under
+**Settings > Secrets and variables > Actions**, or create GitHub Environments
+named `dev`, `pre`, and `prod` under **Settings > Environments** and add
+environment-specific secrets there. The workflow reads secrets from either
+scope; an environment secret with the same name takes precedence over a
+repository secret. The `SHOP_EMAIL` and `SHOP_PASSWORD` repository secrets
+shown in GitHub Settings are already available to the workflow; no YAML change
+is needed for them.
 
 | Secret | Needed for |
 | --- | --- |
-| `SHOP_EMAIL` | Shop login UI scenarios |
-| `SHOP_PASSWORD` | Shop login UI scenarios |
+| `SHOP_EMAIL` | Shop login UI scenarios; use repository or environment scope |
+| `SHOP_PASSWORD` | Shop login UI scenarios; use repository or environment scope |
 | `API_BASE_URL` | API tests when the selected profile has no configured URL |
 | `API_KEY` | API tests when the selected profile has no configured key |
 | `UI_BASE_URL` | UI scenarios when the selected profile has no configured UI URL |
@@ -234,9 +239,9 @@ UI scenario captures a screenshot before closing the browser; it is attached
 to the Cucumber scenario and saved under `target/screenshots/` for the
 artifact.
 
-The shop login needs `SHOP_EMAIL` and `SHOP_PASSWORD` in the selected GitHub
-Environment. If either is missing, the login step fails before opening a
-browser, so no screenshot can be captured for that failure.
+The shop login needs `SHOP_EMAIL` and `SHOP_PASSWORD` from repository secrets
+or the selected GitHub Environment. If either is missing, the login step fails
+before opening a browser, so no screenshot can be captured for that failure.
 
 ## Reports
 
